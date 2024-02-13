@@ -1,5 +1,4 @@
-# Type II topoisomerases control 3D chromatin structure at positively supercoiled 
-regions at boundaries of active chromatin with the nuclear lamina 
+# Type II topoisomerases control 3D chromatin structure at positively supercoiled regions at boundaries of active chromatin with the nuclear lamina 
 
 ## Abstract
 Spatial chromosome architecture is a key factor in eukaryotic gene regulation 
