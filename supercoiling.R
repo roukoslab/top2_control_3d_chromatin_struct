@@ -165,13 +165,13 @@ seqlevelsStyle(second(microc.loops$dko)) <- "UCSC"
 ##   1- Does supercoiling accumulate at LAD borders?
 ##
 # function to meta-plot signal around a Pairs GRanges object
-plotPairsSignal <- function(regions, signal, tiles=100, what="", main="", sub="", extend=c("", "")) {
+plotPairsSignal <- function(regions, signal, tiles=100, pal=palette()[1:length(signal)],
+                            what="", main="", sub="", extend=c("", "")) {
 
   seqlevels(first(regions)) <-
   seqlevels(second(regions)) <-
-  seqlevels(mcols(regions)$within) <-
-  seqlevels(signal, pruning.mode="coarse") <-
-    standardChromosomes(Hsapiens)
+  seqlevels(mcols(regions)$within) <- standardChromosomes(Hsapiens)
+  signal <- lapply(signal, function(x) { seqlevels(x, pruning.mode="coarse") <- standardChromosomes(Hsapiens); x })
 
   # bin regions + calculate aggregated average signal per bin
   get_vector <- function(regions, signal) {
@@ -187,16 +187,20 @@ plotPairsSignal <- function(regions, signal, tiles=100, what="", main="", sub=""
   }
 
   # get_vector for the 3 subregions: start of the loop, body of the loop, end of the loop
-  x <- mclapply(list(left=first(regions), within=mcols(regions)$within, right=second(regions)), get_vector, signal)
-  x <- c(x$left, x$within, x$right)
+  x <- mclapply(signal, function(signal) {
+    x <- mclapply(list(left=first(regions), within=mcols(regions)$within, right=second(regions)), get_vector, signal)
+    scale(c(x$left, x$within, x$right))   # scale tracks, to help plotting them together
+  })
 
   # plot something quick and dirty
-  plot(x, type="n", xlab=NA, ylab="arbitrary units", axes=FALSE, main=main, sub=sub, cex=2/3, cex.lab=2/3, cex.main=2/3, cex.sub=2/3)
+  plot(x[[1]], type="n", xlab=NA, ylab="arbitrary units", ylim=range(unlist(x)),
+       axes=FALSE, main=main, sub=sub, cex=2/3, cex.lab=2/3, cex.main=2/3, cex.sub=2/3)
   Axis(side=1, at=c(1, tiles/2, 3*tiles/2, 3*tiles-tiles/2, 3*tiles), cex.axis=2/3,
        labels=c(extend[1], "left\nboundary", paste(what, "center"), "right\nboundary", extend[2]))
   Axis(side=2, cex.axis=2/3)
-  lines(x)
   abline(v=c(tiles/2, 3*tiles-tiles/2), lty=2, col='red')
+  Map(x, pal, f=function(x, color) lines(x, col=color))
+  legend("top", legend=names(x), fill=pal, cex=2/3, bty="n")
 }
 
 # divide LADs into small (<1e5), medium (<1e6) and large (>1e6)
@@ -207,7 +211,7 @@ x <- LADs$wt[width(LADs$wt) < 1e5 & width(LADs$wt) > 2 * EXTEND]
 x <- Pairs(first =GRanges(seqnames(x), IRanges(start(x) - EXTEND, start(x) + EXTEND)),
            within=GRanges(seqnames(x), IRanges(start(x) + EXTEND, end(x)   - EXTEND)),
            second=GRanges(seqnames(x), IRanges(end(x)   - EXTEND, end(x)   + EXTEND)))
-plotPairsSignal(x, gapr.signal, what="LAD", extend=c("-5KB", "+5KB"),
+plotPairsSignal(x, list(GapR=gapr.signal), pal="black", what="LAD", extend=c("-5KB", "+5KB"),
                 main="Supercoiling accumulation at LAD boundaries", sub="Small LADs <100KB")
 
 EXTEND <- 50000
@@ -215,7 +219,7 @@ x <- LADs$wt[width(LADs$wt) > 1e5 & width(LADs$wt) < 1e6]
 x <- Pairs(first =GRanges(seqnames(x), IRanges(start(x) - EXTEND, start(x) + EXTEND)),
            within=GRanges(seqnames(x), IRanges(start(x) + EXTEND, end(x)   - EXTEND)),
            second=GRanges(seqnames(x), IRanges(end(x)   - EXTEND, end(x)   + EXTEND)))
-plotPairsSignal(x, gapr.signal, what="LAD", extend=c("-50KB", "+50KB"),
+plotPairsSignal(x, list(GapR=gapr.signal), pal="black", what="LAD", extend=c("-50KB", "+50KB"),
                 main="Supercoiling accumulation at LAD boundaries", sub="Medium LADs <1MB")
 
 EXTEND <- 500000
@@ -223,7 +227,12 @@ x <- LADs$wt[width(LADs$wt) > 1e6]
 x <- Pairs(first =GRanges(seqnames(x), IRanges(start(x) - EXTEND, start(x) + EXTEND)),
            within=GRanges(seqnames(x), IRanges(start(x) + EXTEND, end(x)   - EXTEND)),
            second=GRanges(seqnames(x), IRanges(end(x)   - EXTEND, end(x)   + EXTEND)))
-plotPairsSignal(x, gapr.signal, what="LAD", extend=c("-500KB", "+500KB"),
+plotPairsSignal(x, list(GapR=gapr.signal), pal="black", what="LAD", extend=c("-500KB", "+500KB"),
+                main="Supercoiling accumulation at LAD boundaries", sub="Large LADs >1MB")
+
+plotPairsSignal(x, list(Top2A=top2a.signal, Top2B=top2b.signal, ENDseq=endseq.signal, GapR=gapr.signal),
+                pal=c(palette()[c(1, 2, 4)], "black"),
+                what="LAD", extend=c("-500KB", "+500KB"),
                 main="Supercoiling accumulation at LAD boundaries", sub="Large LADs >1MB")
 par(opar)
 
@@ -244,7 +253,7 @@ x <- microc.loops$wt[w < 1e5 & w > 2 * EXTEND + 100] # +100, to guarantee we hav
 x <- Pairs(first =GRanges(seqnames(first(x)), IRanges(start(first(x))  - EXTEND, end(first(x))    + EXTEND)),
            within=GRanges(seqnames(first(x)), IRanges(end(first(x))    + EXTEND, start(second(x)) - EXTEND)),
            second=GRanges(seqnames(first(x)), IRanges(start(second(x)) - EXTEND, end(second(x))   + EXTEND)))
-plotPairsSignal(x, gapr.signal, what="loop", extend=c("-10KB", "+10KB"), 
+plotPairsSignal(x, list(GapR=gapr.signal), pal="black", what="loop", extend=c("-10KB", "+10KB"), 
                 main="Supercoiling accumulation at loop boundaries", sub="Small loops <100KB")
 
 EXTEND <- 10000
@@ -252,7 +261,7 @@ x <- microc.loops$wt[w > 1e5 & w < 1e6 & w > 2 * EXTEND + 100]
 x <- Pairs(first =GRanges(seqnames(first(x)), IRanges(start(first(x))  - EXTEND, end(first(x))    + EXTEND)),
            within=GRanges(seqnames(first(x)), IRanges(end(first(x))    + EXTEND, start(second(x)) - EXTEND)),
            second=GRanges(seqnames(first(x)), IRanges(start(second(x)) - EXTEND, end(second(x))   + EXTEND)))
-plotPairsSignal(x, gapr.signal, what="loops", extend=c("-10KB", "+10KB"),
+plotPairsSignal(x, list(GapR=gapr.signal), pal="black", what="loops", extend=c("-10KB", "+10KB"),
                 main="Supercoiling accumulation at loop boundaries", sub="Medium loops <1MB")
 
 EXTEND <- 10000
@@ -260,7 +269,11 @@ x <- microc.loops$wt[w >= 1e6 & w > 2 * EXTEND + 100]
 x <- Pairs(first =GRanges(seqnames(first(x)), IRanges(start(first(x))  - EXTEND, end(first(x))    + EXTEND)),
            within=GRanges(seqnames(first(x)), IRanges(end(first(x))    + EXTEND, start(second(x)) - EXTEND)),
            second=GRanges(seqnames(first(x)), IRanges(start(second(x)) - EXTEND, end(second(x))   + EXTEND)))
-plotPairsSignal(x, gapr.signal, what="loops", extend=c("-10KB", "+10KB"),
+plotPairsSignal(x, list(GapR=gapr.signal), pal="black", what="loops", extend=c("-10KB", "+10KB"),
+                main="Supercoiling accumulation at loop boundaries", sub="Large loops >=1MB")
+
+plotPairsSignal(x, list(Top2A=top2a.signal, Top2B=top2b.signal, ENDseq=endseq.signal, GapR=gapr.signal),
+                pal=c(palette()[c(1, 2, 4)], "black"), what="loops", extend=c("-10KB", "+10KB"),
                 main="Supercoiling accumulation at loop boundaries", sub="Large loops >=1MB")
 par(opar)
 
