@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/731514676.svg)](https://doi.org/10.5281/zenodo.13871953)
+
 # Type II topoisomerases shape multi-scale 3D chromatin folding in regions of positive supercoils
 
 ## Abstract
